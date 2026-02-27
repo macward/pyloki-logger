@@ -204,6 +204,31 @@ class TestFromClient:
         client.stop()
 
 
+class TestEdgeCases:
+    def test_unknown_level_falls_back_to_info(self) -> None:
+        client = Loki(make_config())
+        handler = LokiHandler(client)
+
+        with patch.object(client, "_log") as mock:
+            record = logging.LogRecord(
+                "test", 99, "", 0, "msg", (), None,
+            )
+            handler.emit(record)
+
+        assert mock.call_args[0][0] == "info"
+        client.stop()
+
+    def test_non_owning_close_does_not_stop_client(self) -> None:
+        client = Loki(make_config())
+        handler = LokiHandler.from_client(client)
+
+        with patch.object(client, "stop") as mock_stop:
+            handler.close()
+
+        mock_stop.assert_not_called()
+        client.stop()
+
+
 class TestStandalone:
     def test_creates_internal_client(self) -> None:
         handler = LokiHandler.standalone(

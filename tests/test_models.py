@@ -181,6 +181,54 @@ class TestLogEntry:
         )
         assert 'empty=""' in entry.line
 
+    def test_line_with_newline_in_message(self) -> None:
+        entry = LogEntry(
+            level="info",
+            message="line1\nline2",
+            labels={"app": "test"},
+        )
+        assert entry.line == "line1\nline2"
+
+    def test_line_with_unicode(self) -> None:
+        entry = LogEntry(
+            level="info",
+            message="hello world",
+            labels={"app": "test"},
+            metadata={"emoji": "fire"},
+        )
+        assert "hello world" in entry.line
+        assert "emoji=fire" in entry.line
+
+    def test_line_empty_message(self) -> None:
+        entry = LogEntry(
+            level="info",
+            message="",
+            labels={"app": "test"},
+        )
+        assert entry.line == ""
+
+    def test_line_empty_message_with_metadata(self) -> None:
+        entry = LogEntry(
+            level="info",
+            message="",
+            labels={"app": "test"},
+            metadata={"key": "val"},
+        )
+        assert entry.line == " | key=val"
+
+    def test_line_large_metadata(self) -> None:
+        metadata = {f"key{i}": f"val{i}" for i in range(100)}
+        entry = LogEntry(
+            level="info",
+            message="msg",
+            labels={"app": "test"},
+            metadata=metadata,
+        )
+        line = entry.line
+        assert line.startswith("msg | ")
+        for i in range(100):
+            assert f"key{i}=val{i}" in line
+
     def test_immutability(self) -> None:
         entry = LogEntry(level="info", message="hello", labels={"app": "test"})
         try:
