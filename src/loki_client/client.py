@@ -50,10 +50,10 @@ class Loki:
 
     def _log(self, level: str, message: str, metadata: dict[str, str]) -> None:
         labels = {
+            **self._config.extra_labels,
             "app": self._config.app,
             "env": self._config.environment,
             "level": level,
-            **self._config.extra_labels,
         }
         entry = LogEntry(
             level=level,

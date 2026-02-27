@@ -5,7 +5,6 @@ import traceback
 from typing import ClassVar
 
 from loki_client.client import Loki
-from loki_client.models import LogEntry
 
 _LEVEL_MAP: dict[int, str] = {
     logging.DEBUG: "debug",
@@ -53,20 +52,7 @@ class LokiHandler(logging.Handler):
                 traceback.format_exception(*record.exc_info)
             )
 
-        labels = {
-            "app": self._client._config.app,
-            "env": self._client._config.environment,
-            "level": level,
-            **self._client._config.extra_labels,
-        }
-
-        entry = LogEntry(
-            level=level,
-            message=message,
-            labels=labels,
-            metadata=metadata,
-        )
-        self._client._buffer.append(entry)
+        self._client._log(level, message, metadata)
 
     def close(self) -> None:
         if self._owns_client:
