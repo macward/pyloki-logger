@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+vibe: pyloki-logger
+
 ## Project
 
 `pyloki-logger` — A non-blocking Python client for sending logs to Grafana Loki with batching, gzip compression, and retry. Single dependency: `httpx`. Python 3.11+.
