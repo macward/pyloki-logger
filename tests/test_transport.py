@@ -67,26 +67,29 @@ def _mock_success() -> MagicMock:
 class TestBuildStreams:
     def test_single_stream(self, transport: LokiTransport) -> None:
         entries = [_make_entry("a", ts=1), _make_entry("b", ts=2)]
-        streams = transport._build_streams(entries)
+        streams, entries_per_stream = transport._build_streams(entries)
 
         assert len(streams) == 1
         assert streams[0]["stream"] == {"app": "testapp"}
         assert streams[0]["values"] == [["1", "a"], ["2", "b"]]
+        assert entries_per_stream[0] == entries
 
     def test_multiple_streams(self, transport: LokiTransport) -> None:
         entries = [
             _make_entry("a", labels={"app": "a"}),
             _make_entry("b", labels={"app": "b"}),
         ]
-        streams = transport._build_streams(entries)
+        streams, entries_per_stream = transport._build_streams(entries)
 
         assert len(streams) == 2
         labels = {json.dumps(s["stream"], sort_keys=True) for s in streams}
         assert labels == {'{"app": "a"}', '{"app": "b"}'}
+        all_entries = [e for group in entries_per_stream for e in group]
+        assert set(id(e) for e in all_entries) == set(id(e) for e in entries)
 
     def test_metadata_in_line(self, transport: LokiTransport) -> None:
         entries = [_make_entry("msg", metadata={"rid": "123"}, ts=1)]
-        streams = transport._build_streams(entries)
+        streams, _ = transport._build_streams(entries)
 
         assert streams[0]["values"] == [["1", "msg | rid=123"]]
 
@@ -158,15 +161,54 @@ class TestSend:
         assert failed == []
 
     def test_send_returns_failed_batches(self, transport: LokiTransport) -> None:
+        entry = _make_entry()
         mock_resp = MagicMock()
         mock_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
             "500", request=MagicMock(), response=MagicMock()
         )
         with patch.object(transport._client, "post", return_value=mock_resp):
-            failed = transport.send([_make_entry()])
+            failed = transport.send([entry])
 
         assert len(failed) == 1
-        assert len(failed[0]) == 1
+        assert failed[0] == [entry]
+
+    def test_multi_batch_partial_failure(self) -> None:
+        cfg = LokiConfig(
+            endpoint="http://loki:3100",
+            app="testapp",
+            max_batch_bytes=200,
+        )
+        transport = LokiTransport(cfg)
+
+        e1 = _make_entry("a" * 80, labels={"s": "1"}, ts=1)
+        e2 = _make_entry("b" * 80, labels={"s": "2"}, ts=2)
+        e3 = _make_entry("c" * 80, labels={"s": "3"}, ts=3)
+
+        ok_resp = _mock_success()
+        fail_resp = MagicMock()
+        fail_resp.raise_for_status.side_effect = (
+            httpx.HTTPStatusError(
+                "500", request=MagicMock(), response=MagicMock(),
+            )
+        )
+
+        streams, _ = transport._build_streams([e1, e2, e3])
+        batches = transport._split_batches(streams)
+        assert len(batches) > 1
+
+        responses = []
+        for i in range(len(batches)):
+            responses.append(fail_resp if i == 0 else ok_resp)
+
+        with patch.object(
+            transport._client, "post", side_effect=responses,
+        ):
+            failed = transport.send([e1, e2, e3])
+
+        assert len(failed) == 1
+        for entry in failed[0]:
+            assert entry in [e1, e2, e3]
+        transport.close()
 
     def test_sent_count_tracks_entries_not_batches(
         self, transport: LokiTransport
@@ -197,7 +239,7 @@ class TestSubBatchSplitting:
             _make_entry("c" * 80, labels={"s": "3"}, ts=3),
         ]
 
-        streams = transport._build_streams(entries)
+        streams, _ = transport._build_streams(entries)
         batches = transport._split_batches(streams)
 
         assert len(batches) > 1
@@ -215,7 +257,7 @@ class TestSubBatchSplitting:
 
         entries = [_make_entry("x" * 100, labels={"s": str(i)}, ts=i) for i in range(5)]
 
-        streams = transport._build_streams(entries)
+        streams, _ = transport._build_streams(entries)
         batches = transport._split_batches(streams)
 
         for batch in batches:

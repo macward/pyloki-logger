@@ -35,29 +35,31 @@ class LokiTransport:
         if not entries:
             return []
 
-        streams = self._build_streams(entries)
+        streams, entries_per_stream = self._build_streams(entries)
         batches = self._split_batches(streams)
         failed: list[list[LogEntry]] = []
 
+        stream_offset = 0
         for batch in batches:
+            batch_size = len(batch["streams"])
             ok = self._post(batch)
             if not ok:
-                batch_entries = [
-                    e
-                    for e in entries
-                    if any(
-                        [str(e.timestamp_ns), e.line] in s["values"]
-                        for s in batch["streams"]
-                    )
-                ]
+                batch_entries: list[LogEntry] = []
+                for i in range(
+                    stream_offset, stream_offset + batch_size,
+                ):
+                    batch_entries.extend(entries_per_stream[i])
                 failed.append(batch_entries)
+            stream_offset += batch_size
 
         return failed
 
     def close(self) -> None:
         self._client.close()
 
-    def _build_streams(self, entries: list[LogEntry]) -> list[dict[str, object]]:
+    def _build_streams(
+        self, entries: list[LogEntry],
+    ) -> tuple[list[dict[str, object]], list[list[LogEntry]]]:
         grouped: dict[str, tuple[dict[str, str], list[LogEntry]]] = {}
         for entry in entries:
             key = json.dumps(entry.labels, sort_keys=True)
@@ -66,10 +68,12 @@ class LokiTransport:
             grouped[key][1].append(entry)
 
         streams: list[dict[str, object]] = []
+        entries_per_stream: list[list[LogEntry]] = []
         for _, (labels, group) in grouped.items():
             values = [[str(e.timestamp_ns), e.line] for e in group]
             streams.append({"stream": labels, "values": values})
-        return streams
+            entries_per_stream.append(group)
+        return streams, entries_per_stream
 
     def _split_batches(
         self, streams: list[dict[str, object]]
