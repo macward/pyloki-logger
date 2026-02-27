@@ -65,5 +65,18 @@ class LogEntry:
     def line(self) -> str:
         if not self.metadata:
             return self.message
-        pairs = " ".join(f"{k}={v}" for k, v in self.metadata.items())
+        pairs = " ".join(
+            f"{_escape_meta(k)}={_escape_meta(v)}"
+            for k, v in self.metadata.items()
+        )
         return f"{self.message} | {pairs}"
+
+
+_META_NEEDS_QUOTING = frozenset('|=" ')
+
+
+def _escape_meta(value: str) -> str:
+    if not value or _META_NEEDS_QUOTING & set(value):
+        escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+        return f'"{escaped}"'
+    return value

@@ -84,6 +84,54 @@ class TestLogEntry:
         )
         assert entry.line == "request failed | request_id=abc123 status=500"
 
+    def test_line_escapes_pipe_in_value(self) -> None:
+        entry = LogEntry(
+            level="info",
+            message="msg",
+            labels={"app": "test"},
+            metadata={"data": "a | b"},
+        )
+        assert " | " not in entry.line.split(" | ", 1)[1].replace(
+            '"a | b"', "",
+        )
+        assert 'data="a | b"' in entry.line
+
+    def test_line_escapes_equals_in_value(self) -> None:
+        entry = LogEntry(
+            level="info",
+            message="msg",
+            labels={"app": "test"},
+            metadata={"expr": "x=1"},
+        )
+        assert 'expr="x=1"' in entry.line
+
+    def test_line_escapes_special_keys(self) -> None:
+        entry = LogEntry(
+            level="info",
+            message="msg",
+            labels={"app": "test"},
+            metadata={"key with spaces": "val"},
+        )
+        assert '"key with spaces"=val' in entry.line
+
+    def test_line_escapes_quotes_in_value(self) -> None:
+        entry = LogEntry(
+            level="info",
+            message="msg",
+            labels={"app": "test"},
+            metadata={"q": 'say "hi"'},
+        )
+        assert r'q="say \"hi\""' in entry.line
+
+    def test_line_empty_value_is_quoted(self) -> None:
+        entry = LogEntry(
+            level="info",
+            message="msg",
+            labels={"app": "test"},
+            metadata={"empty": ""},
+        )
+        assert 'empty=""' in entry.line
+
     def test_immutability(self) -> None:
         entry = LogEntry(level="info", message="hello", labels={"app": "test"})
         try:
