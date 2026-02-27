@@ -1,6 +1,39 @@
 from __future__ import annotations
 
-from loki_client.models import LogEntry
+from loki_client.models import LogEntry, LokiConfig
+
+
+def make_config(**overrides: object) -> LokiConfig:
+    """Shared config factory with sensible test defaults."""
+    defaults: dict[str, object] = {
+        "endpoint": "http://loki:3100",
+        "app": "testapp",
+        "environment": "test",
+        "batch_size": 100,
+        "flush_interval": 60.0,
+        "max_buffer_size": 10_000,
+        "max_retries": 3,
+        "retry_backoff": 0.01,
+    }
+    defaults.update(overrides)
+    return LokiConfig(**defaults)  # type: ignore[arg-type]
+
+
+def make_entry(
+    msg: str = "hello",
+    level: str = "info",
+    labels: dict[str, str] | None = None,
+    metadata: dict[str, str] | None = None,
+    ts: int = 1,
+) -> LogEntry:
+    """Shared LogEntry factory."""
+    return LogEntry(
+        level=level,
+        message=msg,
+        labels=labels or {"app": "testapp"},
+        metadata=metadata or {},
+        timestamp_ns=ts,
+    )
 
 
 class FakeTransport:

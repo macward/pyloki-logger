@@ -4,68 +4,42 @@ import time
 from unittest.mock import MagicMock
 
 from loki_client.buffer import LogBuffer
-from loki_client.models import LogEntry, LokiConfig
 
-
-def _make_entry(msg: str = "hello", ts: int = 1) -> LogEntry:
-    return LogEntry(
-        level="info",
-        message=msg,
-        labels={"app": "test"},
-        timestamp_ns=ts,
-    )
-
-
-def _make_config(**overrides: object) -> LokiConfig:
-    defaults: dict[str, object] = {
-        "endpoint": "http://loki:3100",
-        "app": "test",
-        "batch_size": 5,
-        "flush_interval": 60.0,
-        "max_buffer_size": 100,
-        "max_retries": 3,
-        "retry_backoff": 0.01,
-    }
-    defaults.update(overrides)
-    return LokiConfig(**defaults)  # type: ignore[arg-type]
+from .conftest import FakeTransport, make_config, make_entry
 
 
 class TestAppend:
     def test_batch_size_triggers_send(self) -> None:
-        transport = MagicMock()
-        transport.send.return_value = []
-        config = _make_config(batch_size=3)
+        transport = FakeTransport()
+        config = make_config(batch_size=3)
         buf = LogBuffer(transport, config)
 
         for i in range(3):
-            buf.append(_make_entry(ts=i))
+            buf.append(make_entry(ts=i))
 
         buf.stop()
-        transport.send.assert_called()
-        batch = transport.send.call_args_list[0][0][0]
-        assert len(batch) == 3
+        assert len(transport.batches) == 1
+        assert len(transport.batches[0]) == 3
 
     def test_below_batch_size_stays_buffered(self) -> None:
-        transport = MagicMock()
-        transport.send.return_value = []
-        config = _make_config(batch_size=10)
+        transport = FakeTransport()
+        config = make_config(batch_size=10)
         buf = LogBuffer(transport, config)
 
-        buf.append(_make_entry())
-        buf.append(_make_entry())
+        buf.append(make_entry())
+        buf.append(make_entry())
 
         assert buf.stats["buffered"] == 2
-        transport.send.assert_not_called()
+        assert len(transport.batches) == 0
         buf.stop()
 
     def test_max_buffer_size_drops_silently(self) -> None:
-        transport = MagicMock()
-        transport.send.return_value = []
-        config = _make_config(batch_size=100, max_buffer_size=3)
+        transport = FakeTransport()
+        config = make_config(batch_size=100, max_buffer_size=3)
         buf = LogBuffer(transport, config)
 
         for i in range(5):
-            buf.append(_make_entry(ts=i))
+            buf.append(make_entry(ts=i))
 
         assert buf.stats["buffered"] == 3
         assert buf.stats["drop_count"] == 2
@@ -74,39 +48,36 @@ class TestAppend:
 
 class TestFlush:
     def test_flush_sends_buffered_entries(self) -> None:
-        transport = MagicMock()
-        transport.send.return_value = []
-        config = _make_config(batch_size=100)
+        transport = FakeTransport()
+        config = make_config(batch_size=100)
         buf = LogBuffer(transport, config)
 
-        buf.append(_make_entry(ts=1))
-        buf.append(_make_entry(ts=2))
+        buf.append(make_entry(ts=1))
+        buf.append(make_entry(ts=2))
         buf.flush()
 
-        transport.send.assert_called_once()
-        assert len(transport.send.call_args[0][0]) == 2
+        assert len(transport.batches) == 1
+        assert len(transport.batches[0]) == 2
         buf.stop()
 
     def test_flush_empty_buffer_noop(self) -> None:
-        transport = MagicMock()
-        transport.send.return_value = []
-        config = _make_config()
+        transport = FakeTransport()
+        config = make_config()
         buf = LogBuffer(transport, config)
 
         buf.flush()
-        transport.send.assert_not_called()
+        assert len(transport.batches) == 0
         buf.stop()
 
     def test_flush_interval_triggers_flush(self) -> None:
-        transport = MagicMock()
-        transport.send.return_value = []
-        config = _make_config(batch_size=100, flush_interval=0.05)
+        transport = FakeTransport()
+        config = make_config(batch_size=100, flush_interval=0.05)
         buf = LogBuffer(transport, config)
 
-        buf.append(_make_entry())
+        buf.append(make_entry())
         time.sleep(0.15)
 
-        transport.send.assert_called()
+        assert len(transport.batches) > 0
         buf.stop()
 
 
@@ -114,13 +85,13 @@ class TestRetry:
     def test_failed_batch_is_retried(self) -> None:
         transport = MagicMock()
         transport.send.side_effect = [
-            [[_make_entry()]],  # first: fail
+            [[make_entry()]],  # first: fail
             [],  # retry: success
         ]
-        config = _make_config(batch_size=1, retry_backoff=0.01)
+        config = make_config(batch_size=1, retry_backoff=0.01)
         buf = LogBuffer(transport, config)
 
-        buf.append(_make_entry())
+        buf.append(make_entry())
         time.sleep(0.05)
         buf.flush()
 
@@ -129,9 +100,9 @@ class TestRetry:
 
     def test_dropped_after_max_retries(self) -> None:
         transport = MagicMock()
-        entry = _make_entry()
+        entry = make_entry()
         transport.send.return_value = [[entry]]
-        config = _make_config(
+        config = make_config(
             batch_size=1, max_retries=2, retry_backoff=0.01,
         )
         buf = LogBuffer(transport, config)
@@ -146,9 +117,9 @@ class TestRetry:
 
     def test_max_retries_zero_drops_immediately(self) -> None:
         transport = MagicMock()
-        entry = _make_entry()
+        entry = make_entry()
         transport.send.return_value = [[entry]]
-        config = _make_config(
+        config = make_config(
             batch_size=1, max_retries=0, retry_backoff=0.01,
         )
         buf = LogBuffer(transport, config)
@@ -164,9 +135,9 @@ class TestRetry:
 
     def test_exact_retry_count(self) -> None:
         transport = MagicMock()
-        entry = _make_entry()
+        entry = make_entry()
         transport.send.return_value = [[entry]]
-        config = _make_config(
+        config = make_config(
             batch_size=1, max_retries=3, retry_backoff=0.01,
         )
         buf = LogBuffer(transport, config)
@@ -184,21 +155,19 @@ class TestRetry:
 
 class TestStop:
     def test_stop_flushes_remaining(self) -> None:
-        transport = MagicMock()
-        transport.send.return_value = []
-        config = _make_config(batch_size=100)
+        transport = FakeTransport()
+        config = make_config(batch_size=100)
         buf = LogBuffer(transport, config)
 
-        buf.append(_make_entry(ts=1))
-        buf.append(_make_entry(ts=2))
+        buf.append(make_entry(ts=1))
+        buf.append(make_entry(ts=2))
         buf.stop()
 
-        transport.send.assert_called()
+        assert len(transport.batches) > 0
 
     def test_double_stop_is_safe(self) -> None:
-        transport = MagicMock()
-        transport.send.return_value = []
-        config = _make_config()
+        transport = FakeTransport()
+        config = make_config()
         buf = LogBuffer(transport, config)
 
         buf.stop()
@@ -207,25 +176,23 @@ class TestStop:
 
 class TestMaxMessageBytes:
     def test_oversized_message_dropped(self) -> None:
-        transport = MagicMock()
-        transport.send.return_value = []
-        config = _make_config(batch_size=100, max_message_bytes=10)
+        transport = FakeTransport()
+        config = make_config(batch_size=100, max_message_bytes=10)
         buf = LogBuffer(transport, config)
 
-        buf.append(_make_entry(msg="short"))
-        buf.append(_make_entry(msg="this message is way too long"))
+        buf.append(make_entry(msg="short"))
+        buf.append(make_entry(msg="this message is way too long"))
 
         assert buf.stats["buffered"] == 1
         assert buf.stats["drop_count"] == 1
         buf.stop()
 
     def test_none_max_message_bytes_allows_all(self) -> None:
-        transport = MagicMock()
-        transport.send.return_value = []
-        config = _make_config(batch_size=100, max_message_bytes=None)
+        transport = FakeTransport()
+        config = make_config(batch_size=100, max_message_bytes=None)
         buf = LogBuffer(transport, config)
 
-        buf.append(_make_entry(msg="a" * 10_000))
+        buf.append(make_entry(msg="a" * 10_000))
 
         assert buf.stats["buffered"] == 1
         assert buf.stats["drop_count"] == 0
@@ -245,14 +212,14 @@ class TestBackgroundThreadResilience:
             return []
 
         transport.send.side_effect = side_effect
-        config = _make_config(
+        config = make_config(
             batch_size=100, flush_interval=0.05,
         )
         buf = LogBuffer(transport, config)
 
-        buf.append(_make_entry(ts=1))
+        buf.append(make_entry(ts=1))
         time.sleep(0.15)  # let background thread flush (and fail)
-        buf.append(_make_entry(ts=2))
+        buf.append(make_entry(ts=2))
         time.sleep(0.15)  # let it flush again (should succeed)
 
         assert transport.send.call_count >= 2
@@ -261,9 +228,8 @@ class TestBackgroundThreadResilience:
 
 class TestStats:
     def test_stats_keys(self) -> None:
-        transport = MagicMock()
-        transport.send.return_value = []
-        config = _make_config()
+        transport = FakeTransport()
+        config = make_config()
         buf = LogBuffer(transport, config)
 
         stats = buf.stats

@@ -5,24 +5,13 @@ from unittest.mock import patch
 import pytest
 
 from loki_client.client import Loki
-from loki_client.models import LokiConfig
 
-
-def _make_config(**overrides: object) -> LokiConfig:
-    defaults: dict[str, object] = {
-        "endpoint": "http://loki:3100",
-        "app": "myapp",
-        "environment": "test",
-        "batch_size": 100,
-        "flush_interval": 60.0,
-    }
-    defaults.update(overrides)
-    return LokiConfig(**defaults)  # type: ignore[arg-type]
+from .conftest import make_config
 
 
 class TestLogMethods:
     def test_info_creates_correct_entry(self) -> None:
-        config = _make_config()
+        config = make_config()
         client = Loki(config)
 
         with patch.object(client._buffer, "append") as mock_append:
@@ -31,12 +20,14 @@ class TestLogMethods:
         entry = mock_append.call_args[0][0]
         assert entry.level == "info"
         assert entry.message == "hello world"
-        assert entry.labels == {"app": "myapp", "env": "test", "level": "info"}
+        assert entry.labels == {
+            "app": "testapp", "env": "test", "level": "info",
+        }
         assert entry.metadata == {"request_id": "abc"}
         client.stop()
 
     def test_debug_level(self) -> None:
-        config = _make_config()
+        config = make_config()
         client = Loki(config)
 
         with patch.object(client._buffer, "append") as mock_append:
@@ -46,7 +37,7 @@ class TestLogMethods:
         client.stop()
 
     def test_warn_level(self) -> None:
-        config = _make_config()
+        config = make_config()
         client = Loki(config)
 
         with patch.object(client._buffer, "append") as mock_append:
@@ -56,7 +47,7 @@ class TestLogMethods:
         client.stop()
 
     def test_error_level(self) -> None:
-        config = _make_config()
+        config = make_config()
         client = Loki(config)
 
         with patch.object(client._buffer, "append") as mock_append:
@@ -66,7 +57,7 @@ class TestLogMethods:
         client.stop()
 
     def test_extra_labels_included(self) -> None:
-        config = _make_config(extra_labels={"region": "us-east"})
+        config = make_config(extra_labels={"region": "us-east"})
         client = Loki(config)
 
         with patch.object(client._buffer, "append") as mock_append:
@@ -85,7 +76,7 @@ class TestKwargsConstructor:
         client.stop()
 
     def test_rejects_both_config_and_kwargs(self) -> None:
-        config = _make_config()
+        config = make_config()
         with pytest.raises(TypeError, match="Cannot pass both"):
             Loki(config, endpoint="http://loki:3100")
 
@@ -99,7 +90,7 @@ class TestKwargsConstructor:
 
 class TestStats:
     def test_stats_keys(self) -> None:
-        config = _make_config()
+        config = make_config()
         client = Loki(config)
 
         stats = client.stats
@@ -114,7 +105,7 @@ class TestStats:
         client.stop()
 
     def test_stats_aggregates_transport_and_buffer(self) -> None:
-        config = _make_config()
+        config = make_config()
         client = Loki(config)
 
         client._transport._sent_count = 10
@@ -130,7 +121,7 @@ class TestStats:
 
 class TestLifecycle:
     def test_stop_delegates(self) -> None:
-        config = _make_config()
+        config = make_config()
         client = Loki(config)
 
         with (
@@ -143,7 +134,7 @@ class TestLifecycle:
         mock_transport_close.assert_called_once()
 
     def test_flush_delegates(self) -> None:
-        config = _make_config()
+        config = make_config()
         client = Loki(config)
 
         with patch.object(client._buffer, "flush") as mock_flush:
@@ -153,7 +144,7 @@ class TestLifecycle:
         client.stop()
 
     def test_context_manager_calls_stop(self) -> None:
-        config = _make_config()
+        config = make_config()
         client = Loki(config)
         with client:
             pass
