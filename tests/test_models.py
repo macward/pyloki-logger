@@ -1,3 +1,5 @@
+import warnings
+
 import pytest
 
 from loki_client.models import LogEntry, LokiConfig
@@ -68,6 +70,53 @@ class TestLokiConfig:
     def test_retry_backoff_zero_is_valid(self) -> None:
         cfg = LokiConfig(endpoint="http://localhost:3100", retry_backoff=0.0)
         assert cfg.retry_backoff == 0.0
+
+    def test_max_message_bytes_none_is_default(self) -> None:
+        cfg = LokiConfig(endpoint="http://localhost:3100")
+        assert cfg.max_message_bytes is None
+
+    def test_max_message_bytes_positive_is_valid(self) -> None:
+        cfg = LokiConfig(
+            endpoint="http://localhost:3100", max_message_bytes=1024,
+        )
+        assert cfg.max_message_bytes == 1024
+
+    def test_max_message_bytes_zero_invalid(self) -> None:
+        with pytest.raises(ValueError, match="max_message_bytes"):
+            LokiConfig(
+                endpoint="http://localhost:3100", max_message_bytes=0,
+            )
+
+    def test_max_message_bytes_negative_invalid(self) -> None:
+        with pytest.raises(ValueError, match="max_message_bytes"):
+            LokiConfig(
+                endpoint="http://localhost:3100", max_message_bytes=-1,
+            )
+
+    def test_tls_warning_on_http_with_auth(self) -> None:
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            LokiConfig(
+                endpoint="http://localhost:3100",
+                auth_header="Bearer token",
+            )
+        assert len(w) == 1
+        assert "cleartext" in str(w[0].message)
+
+    def test_no_tls_warning_on_https(self) -> None:
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            LokiConfig(
+                endpoint="https://localhost:3100",
+                auth_header="Bearer token",
+            )
+        assert len(w) == 0
+
+    def test_no_tls_warning_without_auth(self) -> None:
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            LokiConfig(endpoint="http://localhost:3100")
+        assert len(w) == 0
 
 
 class TestLogEntry:

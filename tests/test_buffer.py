@@ -205,6 +205,60 @@ class TestStop:
         buf.stop()
 
 
+class TestMaxMessageBytes:
+    def test_oversized_message_dropped(self) -> None:
+        transport = MagicMock()
+        transport.send.return_value = []
+        config = _make_config(batch_size=100, max_message_bytes=10)
+        buf = LogBuffer(transport, config)
+
+        buf.append(_make_entry(msg="short"))
+        buf.append(_make_entry(msg="this message is way too long"))
+
+        assert buf.stats["buffered"] == 1
+        assert buf.stats["drop_count"] == 1
+        buf.stop()
+
+    def test_none_max_message_bytes_allows_all(self) -> None:
+        transport = MagicMock()
+        transport.send.return_value = []
+        config = _make_config(batch_size=100, max_message_bytes=None)
+        buf = LogBuffer(transport, config)
+
+        buf.append(_make_entry(msg="a" * 10_000))
+
+        assert buf.stats["buffered"] == 1
+        assert buf.stats["drop_count"] == 0
+        buf.stop()
+
+
+class TestBackgroundThreadResilience:
+    def test_flush_exception_does_not_kill_thread(self) -> None:
+        transport = MagicMock()
+        call_count = 0
+
+        def side_effect(entries: list) -> list:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise RuntimeError("network error")
+            return []
+
+        transport.send.side_effect = side_effect
+        config = _make_config(
+            batch_size=100, flush_interval=0.05,
+        )
+        buf = LogBuffer(transport, config)
+
+        buf.append(_make_entry(ts=1))
+        time.sleep(0.15)  # let background thread flush (and fail)
+        buf.append(_make_entry(ts=2))
+        time.sleep(0.15)  # let it flush again (should succeed)
+
+        assert transport.send.call_count >= 2
+        buf.stop()
+
+
 class TestStats:
     def test_stats_keys(self) -> None:
         transport = MagicMock()
