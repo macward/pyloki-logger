@@ -131,7 +131,9 @@ class TestRetry:
         transport = MagicMock()
         entry = _make_entry()
         transport.send.return_value = [[entry]]
-        config = _make_config(batch_size=1, max_retries=2, retry_backoff=0.01)
+        config = _make_config(
+            batch_size=1, max_retries=2, retry_backoff=0.01,
+        )
         buf = LogBuffer(transport, config)
 
         buf.append(entry)
@@ -139,7 +141,44 @@ class TestRetry:
             time.sleep(0.05)
             buf.flush()
 
-        assert buf.stats["drop_count"] >= 1
+        assert buf.stats["drop_count"] == 1
+        buf.stop()
+
+    def test_max_retries_zero_drops_immediately(self) -> None:
+        transport = MagicMock()
+        entry = _make_entry()
+        transport.send.return_value = [[entry]]
+        config = _make_config(
+            batch_size=1, max_retries=0, retry_backoff=0.01,
+        )
+        buf = LogBuffer(transport, config)
+
+        buf.append(entry)
+        time.sleep(0.05)
+        buf.flush()
+
+        assert transport.send.call_count == 1
+        assert buf.stats["drop_count"] == 1
+        assert buf.stats["retry_queue"] == 0
+        buf.stop()
+
+    def test_exact_retry_count(self) -> None:
+        transport = MagicMock()
+        entry = _make_entry()
+        transport.send.return_value = [[entry]]
+        config = _make_config(
+            batch_size=1, max_retries=3, retry_backoff=0.01,
+        )
+        buf = LogBuffer(transport, config)
+
+        buf.append(entry)
+        for _ in range(10):
+            time.sleep(0.05)
+            buf.flush()
+
+        # 1 initial send + 3 retries = 4 total calls
+        assert transport.send.call_count == 4
+        assert buf.stats["drop_count"] == 1
         buf.stop()
 
 

@@ -14,7 +14,7 @@ class _RetryItem:
 
     def __init__(self, entries: list[LogEntry], backoff: float) -> None:
         self.entries = entries
-        self.attempts = 1
+        self.attempts = 0
         self.next_retry = time.monotonic() + backoff
 
 
@@ -86,8 +86,14 @@ class LogBuffer:
             self._enqueue_retry(batch)
 
     def _enqueue_retry(self, entries: list[LogEntry]) -> None:
+        if self._config.max_retries <= 0:
+            with self._lock:
+                self._drop_count += len(entries)
+            return
         with self._lock:
-            self._retry_queue.append(_RetryItem(entries, self._config.retry_backoff))
+            self._retry_queue.append(
+                _RetryItem(entries, self._config.retry_backoff),
+            )
 
     def _process_retries(self) -> None:
         now = time.monotonic()
@@ -96,11 +102,13 @@ class LogBuffer:
             self._retry_queue = [r for r in self._retry_queue if r.next_retry > now]
 
         for item in ready:
+            item.attempts += 1
             failed = self._transport.send(item.entries)
             if failed:
-                item.attempts += 1
-                if item.attempts <= self._config.max_retries:
-                    backoff = self._config.retry_backoff * (2 ** (item.attempts - 1))
+                if item.attempts < self._config.max_retries:
+                    backoff = self._config.retry_backoff * (
+                        2 ** item.attempts
+                    )
                     item.next_retry = time.monotonic() + backoff
                     with self._lock:
                         self._retry_queue.append(item)
