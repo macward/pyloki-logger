@@ -36,6 +36,9 @@ class LokiTransport:
             return []
 
         streams, entries_per_stream = self._build_streams(entries)
+        streams, entries_per_stream = self._split_oversized_streams(
+            streams, entries_per_stream,
+        )
         batches = self._split_batches(streams)
         failed: list[list[LogEntry]] = []
 
@@ -74,6 +77,63 @@ class LokiTransport:
             streams.append({"stream": labels, "values": values})
             entries_per_stream.append(group)
         return streams, entries_per_stream
+
+    def _split_oversized_streams(
+        self,
+        streams: list[dict[str, object]],
+        entries_per_stream: list[list[LogEntry]],
+    ) -> tuple[
+        list[dict[str, object]], list[list[LogEntry]],
+    ]:
+        max_bytes = self._config.max_batch_bytes
+        out_streams: list[dict[str, object]] = []
+        out_entries: list[list[LogEntry]] = []
+
+        for stream, group in zip(streams, entries_per_stream, strict=True):
+            stream_size = len(json.dumps(stream).encode())
+            if stream_size <= max_bytes:
+                out_streams.append(stream)
+                out_entries.append(group)
+                continue
+
+            labels = stream["stream"]
+            values = stream["values"]
+            # overhead: {"stream":<labels>,"values":[]}
+            label_json = json.dumps(labels)
+            base = len(
+                f'{{"stream":{label_json},"values":[]}}'.encode(),
+            )
+            base += _WRAPPER_OVERHEAD
+
+            chunk_vals: list[list[str]] = []
+            chunk_entries: list[LogEntry] = []
+            chunk_size = base
+
+            for val, entry in zip(values, group, strict=True):  # type: ignore[arg-type]
+                val_size = len(json.dumps(val).encode())
+                comma = _COMMA_OVERHEAD if chunk_vals else 0
+                if chunk_vals and chunk_size + comma + val_size > max_bytes:
+                    out_streams.append(
+                        {"stream": labels, "values": chunk_vals},
+                    )
+                    out_entries.append(chunk_entries)
+                    chunk_vals = []
+                    chunk_entries = []
+                    chunk_size = base
+
+                chunk_vals.append(val)
+                chunk_entries.append(entry)
+                chunk_size += (
+                    _COMMA_OVERHEAD if len(chunk_vals) > 1 else 0
+                ) + val_size
+
+            if chunk_vals:
+                out_streams.append(
+                    {"stream": labels, "values": chunk_vals},
+                )
+                out_entries.append(chunk_entries)
+
+        return out_streams, out_entries
 
     def _split_batches(
         self, streams: list[dict[str, object]]

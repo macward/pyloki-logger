@@ -247,7 +247,7 @@ class TestSubBatchSplitting:
             assert "streams" in batch
         transport.close()
 
-    def test_batch_size_accounts_for_wrapper_overhead(self) -> None:
+    def test_batch_size_within_limit(self) -> None:
         cfg = LokiConfig(
             endpoint="http://loki:3100",
             app="testapp",
@@ -255,14 +255,56 @@ class TestSubBatchSplitting:
         )
         transport = LokiTransport(cfg)
 
-        entries = [_make_entry("x" * 100, labels={"s": str(i)}, ts=i) for i in range(5)]
+        entries = [
+            _make_entry(
+                "x" * 100, labels={"s": str(i)}, ts=i,
+            )
+            for i in range(5)
+        ]
 
-        streams, _ = transport._build_streams(entries)
+        streams, eps = transport._build_streams(entries)
+        streams, eps = transport._split_oversized_streams(
+            streams, eps,
+        )
         batches = transport._split_batches(streams)
 
         for batch in batches:
             serialized = json.dumps(batch).encode()
-            assert len(serialized) <= cfg.max_batch_bytes + 200
+            assert len(serialized) <= cfg.max_batch_bytes
+        transport.close()
+
+    def test_oversized_stream_split_at_value_level(self) -> None:
+        cfg = LokiConfig(
+            endpoint="http://loki:3100",
+            app="testapp",
+            max_batch_bytes=300,
+        )
+        transport = LokiTransport(cfg)
+
+        entries = [
+            _make_entry(
+                "x" * 80, labels={"app": "test"}, ts=i,
+            )
+            for i in range(10)
+        ]
+
+        streams, eps = transport._build_streams(entries)
+        assert len(streams) == 1
+
+        streams, eps = transport._split_oversized_streams(
+            streams, eps,
+        )
+        assert len(streams) > 1
+
+        total_entries = sum(len(g) for g in eps)
+        assert total_entries == 10
+
+        for stream in streams:
+            size = len(json.dumps(stream).encode())
+            assert size <= cfg.max_batch_bytes
+
+        for stream in streams:
+            assert stream["stream"] == {"app": "test"}
         transport.close()
 
 
