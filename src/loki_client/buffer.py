@@ -6,8 +6,7 @@ import time
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from loki_client.models import LogEntry, LokiConfig
-    from loki_client.transport import LokiTransport
+    from loki_client.models import LogEntry, LokiConfig, TransportProtocol
 
 
 class _RetryItem:
@@ -20,7 +19,7 @@ class _RetryItem:
 
 
 class LogBuffer:
-    def __init__(self, transport: LokiTransport, config: LokiConfig) -> None:
+    def __init__(self, transport: TransportProtocol, config: LokiConfig) -> None:
         self._transport = transport
         self._config = config
         self._buffer: list[LogEntry] = []

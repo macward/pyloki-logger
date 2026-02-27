@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
+from typing import Protocol
 
 
 @dataclass(frozen=True)
@@ -37,6 +38,11 @@ class LokiConfig:
             raise ValueError("retry_backoff must be >= 0")
         if self.timeout <= 0:
             raise ValueError("timeout must be > 0")
+
+
+class TransportProtocol(Protocol):
+    def send(self, entries: list[LogEntry]) -> list[list[LogEntry]]: ...
+    def close(self) -> None: ...
 
 
 @dataclass(frozen=True, slots=True)
