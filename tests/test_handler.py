@@ -5,24 +5,13 @@ from unittest.mock import patch
 
 from loki_client.client import Loki
 from loki_client.handler import LokiHandler
-from loki_client.models import LokiConfig
 
-
-def _make_config(**overrides: object) -> LokiConfig:
-    defaults: dict[str, object] = {
-        "endpoint": "http://loki:3100",
-        "app": "testapp",
-        "environment": "test",
-        "batch_size": 100,
-        "flush_interval": 60.0,
-    }
-    defaults.update(overrides)
-    return LokiConfig(**defaults)  # type: ignore[arg-type]
+from .conftest import make_config
 
 
 class TestLevelMapping:
     def test_debug_maps(self) -> None:
-        client = Loki(_make_config())
+        client = Loki(make_config())
         handler = LokiHandler(client)
 
         with patch.object(client, "_log") as mock:
@@ -35,7 +24,7 @@ class TestLevelMapping:
         client.stop()
 
     def test_info_maps(self) -> None:
-        client = Loki(_make_config())
+        client = Loki(make_config())
         handler = LokiHandler(client)
 
         with patch.object(client, "_log") as mock:
@@ -48,7 +37,7 @@ class TestLevelMapping:
         client.stop()
 
     def test_warning_maps_to_warn(self) -> None:
-        client = Loki(_make_config())
+        client = Loki(make_config())
         handler = LokiHandler(client)
 
         with patch.object(client, "_log") as mock:
@@ -61,7 +50,7 @@ class TestLevelMapping:
         client.stop()
 
     def test_error_maps(self) -> None:
-        client = Loki(_make_config())
+        client = Loki(make_config())
         handler = LokiHandler(client)
 
         with patch.object(client, "_log") as mock:
@@ -74,7 +63,7 @@ class TestLevelMapping:
         client.stop()
 
     def test_critical_maps_to_error(self) -> None:
-        client = Loki(_make_config())
+        client = Loki(make_config())
         handler = LokiHandler(client)
 
         with patch.object(client, "_log") as mock:
@@ -89,7 +78,7 @@ class TestLevelMapping:
 
 class TestLoopPrevention:
     def test_ignores_loki_client_loggers(self) -> None:
-        client = Loki(_make_config())
+        client = Loki(make_config())
         handler = LokiHandler(client)
 
         with patch.object(client, "_log") as mock:
@@ -103,7 +92,7 @@ class TestLoopPrevention:
         client.stop()
 
     def test_allows_other_loggers(self) -> None:
-        client = Loki(_make_config())
+        client = Loki(make_config())
         handler = LokiHandler(client)
 
         with patch.object(client, "_log") as mock:
@@ -119,7 +108,7 @@ class TestLoopPrevention:
 
 class TestMetadataExtraction:
     def test_extracts_logger_module_func(self) -> None:
-        client = Loki(_make_config())
+        client = Loki(make_config())
         handler = LokiHandler(client)
 
         with patch.object(client, "_log") as mock:
@@ -138,7 +127,7 @@ class TestMetadataExtraction:
         client.stop()
 
     def test_includes_traceback_on_exception(self) -> None:
-        client = Loki(_make_config())
+        client = Loki(make_config())
         handler = LokiHandler(client)
 
         try:
@@ -165,7 +154,7 @@ class TestLabelConsistency:
     def test_handler_and_client_produce_identical_labels(
         self,
     ) -> None:
-        config = _make_config(extra_labels={"region": "us"})
+        config = make_config(extra_labels={"region": "us"})
         client = Loki(config)
         handler = LokiHandler(client)
 
@@ -188,8 +177,10 @@ class TestLabelConsistency:
     def test_extra_labels_cannot_override_base_labels(
         self,
     ) -> None:
-        config = _make_config(
-            extra_labels={"app": "evil", "env": "evil", "level": "evil"},
+        config = make_config(
+            extra_labels={
+                "app": "evil", "env": "evil", "level": "evil",
+            },
         )
         client = Loki(config)
 
@@ -205,7 +196,7 @@ class TestLabelConsistency:
 
 class TestFromClient:
     def test_shares_buffer(self) -> None:
-        client = Loki(_make_config())
+        client = Loki(make_config())
         handler = LokiHandler.from_client(client)
 
         assert handler._client is client
