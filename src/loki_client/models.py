@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+import warnings
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -20,6 +21,7 @@ class LokiConfig:
     gzip_enabled: bool = True
     auth_header: str | None = field(default=None, repr=False)
     extra_labels: dict[str, str] = field(default_factory=dict)
+    max_message_bytes: int | None = None
 
     def __post_init__(self) -> None:
         if not self.endpoint:
@@ -38,6 +40,18 @@ class LokiConfig:
             raise ValueError("retry_backoff must be >= 0")
         if self.timeout <= 0:
             raise ValueError("timeout must be > 0")
+        if self.max_message_bytes is not None and self.max_message_bytes <= 0:
+            raise ValueError("max_message_bytes must be > 0 or None")
+        if (
+            self.auth_header
+            and self.endpoint.startswith("http://")
+        ):
+            warnings.warn(
+                "auth_header is set but endpoint uses plain HTTP; "
+                "credentials may be transmitted in cleartext",
+                UserWarning,
+                stacklevel=2,
+            )
 
 
 class TransportProtocol(Protocol):

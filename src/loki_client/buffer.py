@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import atexit
+import sys
 import threading
 import time
 from typing import TYPE_CHECKING
@@ -36,6 +37,12 @@ class LogBuffer:
         atexit.register(self.stop)
 
     def append(self, entry: LogEntry) -> None:
+        max_bytes = self._config.max_message_bytes
+        if max_bytes is not None and len(entry.message.encode()) > max_bytes:
+            with self._lock:
+                self._drop_count += 1
+            return
+
         batch: list[LogEntry] | None = None
         with self._lock:
             if len(self._buffer) >= self._config.max_buffer_size:
@@ -77,7 +84,13 @@ class LogBuffer:
 
     def _run(self) -> None:
         while not self._stop_event.wait(self._config.flush_interval):
-            self.flush()
+            try:
+                self.flush()
+            except Exception:
+                print(
+                    "loki_client: flush failed in background thread",
+                    file=sys.stderr,
+                )
 
     def _send_batch(self, entries: list[LogEntry]) -> None:
         failed = self._transport.send(entries)

@@ -151,3 +151,10 @@ class TestLifecycle:
 
         mock_flush.assert_called_once()
         client.stop()
+
+    def test_context_manager_calls_stop(self) -> None:
+        config = _make_config()
+        client = Loki(config)
+        with client:
+            pass
+        assert client._buffer._stop_event.is_set()

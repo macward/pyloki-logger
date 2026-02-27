@@ -45,6 +45,7 @@ class LokiHandler(logging.Handler):
         gzip_enabled: bool = True,
         auth_header: str | None = None,
         extra_labels: dict[str, str] | None = None,
+        max_message_bytes: int | None = None,
     ) -> LokiHandler:
         config = LokiConfig(
             endpoint=endpoint,
@@ -60,6 +61,7 @@ class LokiHandler(logging.Handler):
             gzip_enabled=gzip_enabled,
             auth_header=auth_header,
             extra_labels=extra_labels or {},
+            max_message_bytes=max_message_bytes,
         )
         client = Loki(config)
         handler = cls(client)

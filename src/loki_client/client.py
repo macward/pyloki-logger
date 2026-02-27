@@ -28,6 +28,7 @@ class Loki:
         gzip_enabled: bool = True,
         auth_header: str | None = None,
         extra_labels: dict[str, str] | None = None,
+        max_message_bytes: int | None = None,
     ) -> None: ...
 
     def __init__(
@@ -48,6 +49,12 @@ class Loki:
 
         self._transport = LokiTransport(self._config)
         self._buffer = LogBuffer(self._transport, self._config)
+
+    def __enter__(self) -> Loki:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        self.stop()
 
     def debug(self, message: str, **metadata: str) -> None:
         self._log("debug", message, metadata)
