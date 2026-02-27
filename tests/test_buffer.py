@@ -240,3 +240,32 @@ class TestStats:
             "drop_count",
         }
         buf.stop()
+
+    def test_flush_count_incremented(self) -> None:
+        transport = FakeTransport()
+        config = make_config(batch_size=100)
+        buf = LogBuffer(transport, config)
+
+        buf.append(make_entry(ts=1))
+        buf.flush()
+        assert buf.stats["flush_count"] == 1
+
+        buf.append(make_entry(ts=2))
+        buf.flush()
+        assert buf.stats["flush_count"] == 2
+        buf.stop()
+
+    def test_pending_reflects_buffered_entries(self) -> None:
+        transport = FakeTransport()
+        config = make_config(batch_size=100)
+        buf = LogBuffer(transport, config)
+
+        assert buf.stats["buffered"] == 0
+        buf.append(make_entry(ts=1))
+        buf.append(make_entry(ts=2))
+        buf.append(make_entry(ts=3))
+        assert buf.stats["buffered"] == 3
+
+        buf.flush()
+        assert buf.stats["buffered"] == 0
+        buf.stop()
