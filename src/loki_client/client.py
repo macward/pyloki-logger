@@ -36,11 +36,13 @@ class Loki:
 
     @property
     def stats(self) -> dict[str, int]:
+        """Aggregate stats (eventually consistent across subsystems)."""
+        transport = self._transport.stats
         buf = self._buffer.stats
         return {
-            "sent": self._transport.sent_count,
-            "errors": self._transport.error_count,
-            "dropped": self._transport.drop_count + buf["drop_count"],
+            "sent": transport["sent_count"],
+            "errors": transport["error_count"],
+            "dropped": transport["drop_count"] + buf["drop_count"],
             "pending": buf["buffered"],
             "retrying": buf["retry_queue"],
             "flushes": buf["flush_count"],

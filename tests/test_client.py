@@ -103,9 +103,9 @@ class TestStats:
         config = _make_config()
         client = Loki(config)
 
-        client._transport.sent_count = 10
-        client._transport.error_count = 2
-        client._transport.drop_count = 1
+        client._transport._sent_count = 10
+        client._transport._error_count = 2
+        client._transport._drop_count = 1
 
         stats = client.stats
         assert stats["sent"] == 10

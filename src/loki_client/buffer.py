@@ -81,7 +81,8 @@ class LogBuffer:
 
     def _send_batch(self, entries: list[LogEntry]) -> None:
         failed = self._transport.send(entries)
-        self._flush_count += 1
+        with self._lock:
+            self._flush_count += 1
         for batch in failed:
             self._enqueue_retry(batch)
 

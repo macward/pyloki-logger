@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import gzip
 import json
+import threading
 from typing import TYPE_CHECKING
 
 import httpx
@@ -26,9 +27,34 @@ class LokiTransport:
         self._config = config
         self._client = httpx.Client(timeout=config.timeout)
         self._url = f"{config.endpoint.rstrip('/')}/loki/api/v1/push"
-        self.sent_count: int = 0
-        self.drop_count: int = 0
-        self.error_count: int = 0
+        self._lock = threading.Lock()
+        self._sent_count: int = 0
+        self._drop_count: int = 0
+        self._error_count: int = 0
+
+    @property
+    def stats(self) -> dict[str, int]:
+        with self._lock:
+            return {
+                "sent_count": self._sent_count,
+                "error_count": self._error_count,
+                "drop_count": self._drop_count,
+            }
+
+    @property
+    def sent_count(self) -> int:
+        with self._lock:
+            return self._sent_count
+
+    @property
+    def error_count(self) -> int:
+        with self._lock:
+            return self._error_count
+
+    @property
+    def drop_count(self) -> int:
+        with self._lock:
+            return self._drop_count
 
     def send(self, entries: list[LogEntry]) -> list[list[LogEntry]]:
         """Send entries to Loki. Returns list of failed entry batches."""
@@ -176,11 +202,14 @@ class LokiTransport:
             resp = self._client.post(self._url, content=body, headers=headers)
             resp.raise_for_status()
             entry_count = sum(len(s["values"]) for s in payload["streams"])
-            self.sent_count += entry_count
+            with self._lock:
+                self._sent_count += entry_count
             return True
         except httpx.HTTPStatusError:
-            self.error_count += 1
+            with self._lock:
+                self._error_count += 1
             return False
         except httpx.HTTPError:
-            self.drop_count += 1
+            with self._lock:
+                self._drop_count += 1
             return False
