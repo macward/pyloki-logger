@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import pytest
+
 from loki_client.client import Loki
 from loki_client.models import LokiConfig
 
@@ -80,6 +82,18 @@ class TestKwargsConstructor:
         client = Loki(endpoint="http://loki:3100", app="fromkw")
         assert client._config.app == "fromkw"
         assert client._config.endpoint == "http://loki:3100"
+        client.stop()
+
+    def test_rejects_both_config_and_kwargs(self) -> None:
+        config = _make_config()
+        with pytest.raises(TypeError, match="Cannot pass both"):
+            Loki(config, endpoint="http://loki:3100")
+
+    def test_kwargs_with_extra_labels_none(self) -> None:
+        client = Loki(
+            endpoint="http://loki:3100", extra_labels=None,
+        )
+        assert client._config.extra_labels == {}
         client.stop()
 
 

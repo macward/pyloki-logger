@@ -5,6 +5,7 @@ import traceback
 from typing import ClassVar
 
 from loki_client.client import Loki
+from loki_client.models import LokiConfig
 
 _LEVEL_MAP: dict[int, str] = {
     logging.DEBUG: "debug",
@@ -28,8 +29,39 @@ class LokiHandler(logging.Handler):
         return cls(client)
 
     @classmethod
-    def standalone(cls, **kwargs: object) -> LokiHandler:
-        client = Loki(**kwargs)  # type: ignore[arg-type]
+    def standalone(
+        cls,
+        *,
+        endpoint: str,
+        app: str = "default",
+        environment: str = "production",
+        batch_size: int = 100,
+        flush_interval: float = 5.0,
+        max_buffer_size: int = 10_000,
+        max_batch_bytes: int = 1_048_576,
+        max_retries: int = 3,
+        retry_backoff: float = 1.0,
+        timeout: float = 10.0,
+        gzip_enabled: bool = True,
+        auth_header: str | None = None,
+        extra_labels: dict[str, str] | None = None,
+    ) -> LokiHandler:
+        config = LokiConfig(
+            endpoint=endpoint,
+            app=app,
+            environment=environment,
+            batch_size=batch_size,
+            flush_interval=flush_interval,
+            max_buffer_size=max_buffer_size,
+            max_batch_bytes=max_batch_bytes,
+            max_retries=max_retries,
+            retry_backoff=retry_backoff,
+            timeout=timeout,
+            gzip_enabled=gzip_enabled,
+            auth_header=auth_header,
+            extra_labels=extra_labels or {},
+        )
+        client = Loki(config)
         handler = cls(client)
         handler._owns_client = True
         return handler
