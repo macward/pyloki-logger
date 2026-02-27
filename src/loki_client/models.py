@@ -4,7 +4,7 @@ import time
 from dataclasses import dataclass, field
 
 
-@dataclass
+@dataclass(frozen=True)
 class LokiConfig:
     endpoint: str
     app: str = "default"
@@ -17,8 +17,26 @@ class LokiConfig:
     retry_backoff: float = 1.0
     timeout: float = 10.0
     gzip_enabled: bool = True
-    auth_header: str | None = None
+    auth_header: str | None = field(default=None, repr=False)
     extra_labels: dict[str, str] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if not self.endpoint:
+            raise ValueError("endpoint must not be empty")
+        if self.batch_size <= 0:
+            raise ValueError("batch_size must be > 0")
+        if self.flush_interval <= 0:
+            raise ValueError("flush_interval must be > 0")
+        if self.max_buffer_size <= 0:
+            raise ValueError("max_buffer_size must be > 0")
+        if self.max_batch_bytes <= 0:
+            raise ValueError("max_batch_bytes must be > 0")
+        if self.max_retries < 0:
+            raise ValueError("max_retries must be >= 0")
+        if self.retry_backoff < 0:
+            raise ValueError("retry_backoff must be >= 0")
+        if self.timeout <= 0:
+            raise ValueError("timeout must be > 0")
 
 
 @dataclass(frozen=True, slots=True)

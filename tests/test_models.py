@@ -1,3 +1,5 @@
+import pytest
+
 from loki_client.models import LogEntry, LokiConfig
 
 
@@ -13,6 +15,59 @@ class TestLokiConfig:
         assert cfg.gzip_enabled is True
         assert cfg.auth_header is None
         assert cfg.extra_labels == {}
+
+    @pytest.mark.parametrize(
+        "field, value, match",
+        [
+            ("endpoint", "", "endpoint must not be empty"),
+            ("batch_size", 0, "batch_size must be > 0"),
+            ("batch_size", -1, "batch_size must be > 0"),
+            ("flush_interval", 0, "flush_interval must be > 0"),
+            ("flush_interval", -1.0, "flush_interval must be > 0"),
+            ("max_buffer_size", 0, "max_buffer_size must be > 0"),
+            ("max_batch_bytes", 0, "max_batch_bytes must be > 0"),
+            ("max_retries", -1, "max_retries must be >= 0"),
+            ("retry_backoff", -1.0, "retry_backoff must be >= 0"),
+            ("timeout", 0, "timeout must be > 0"),
+            ("timeout", -1.0, "timeout must be > 0"),
+        ],
+    )
+    def test_validation_rejects_invalid(
+        self, field: str, value: object, match: str,
+    ) -> None:
+        kwargs: dict[str, object] = {"endpoint": "http://localhost:3100"}
+        kwargs[field] = value
+        with pytest.raises(ValueError, match=match):
+            LokiConfig(**kwargs)  # type: ignore[arg-type]
+
+    def test_auth_header_hidden_from_repr(self) -> None:
+        cfg = LokiConfig(
+            endpoint="http://localhost:3100",
+            auth_header="Bearer secret-token",
+        )
+        r = repr(cfg)
+        assert "secret-token" not in r
+        assert "auth_header" not in r
+
+    def test_auth_header_hidden_from_str(self) -> None:
+        cfg = LokiConfig(
+            endpoint="http://localhost:3100",
+            auth_header="Bearer secret-token",
+        )
+        assert "secret-token" not in str(cfg)
+
+    def test_frozen_raises_on_mutation(self) -> None:
+        cfg = LokiConfig(endpoint="http://localhost:3100")
+        with pytest.raises(AttributeError):
+            cfg.batch_size = 999  # type: ignore[misc]
+
+    def test_max_retries_zero_is_valid(self) -> None:
+        cfg = LokiConfig(endpoint="http://localhost:3100", max_retries=0)
+        assert cfg.max_retries == 0
+
+    def test_retry_backoff_zero_is_valid(self) -> None:
+        cfg = LokiConfig(endpoint="http://localhost:3100", retry_backoff=0.0)
+        assert cfg.retry_backoff == 0.0
 
 
 class TestLogEntry:
