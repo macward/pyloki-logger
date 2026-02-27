@@ -5,7 +5,10 @@ import loki_client
 
 class TestPublicExports:
     def test_all_names_importable(self) -> None:
-        for name in ["Loki", "LokiHandler", "LokiConfig", "LogEntry"]:
+        for name in [
+            "Loki", "LokiHandler", "LokiConfig",
+            "LogEntry", "TransportProtocol",
+        ]:
             assert hasattr(loki_client, name)
 
     def test_all_list_matches(self) -> None:
@@ -14,12 +17,20 @@ class TestPublicExports:
             "LokiHandler",
             "LokiConfig",
             "LogEntry",
+            "TransportProtocol",
         }
 
     def test_from_import(self) -> None:
-        from loki_client import LogEntry, Loki, LokiConfig, LokiHandler
+        from loki_client import (
+            LogEntry,
+            Loki,
+            LokiConfig,
+            LokiHandler,
+            TransportProtocol,
+        )
 
         assert Loki is not None
         assert LokiHandler is not None
         assert LokiConfig is not None
         assert LogEntry is not None
+        assert TransportProtocol is not None
