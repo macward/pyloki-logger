@@ -35,7 +35,10 @@ class TestLokiConfig:
         ],
     )
     def test_validation_rejects_invalid(
-        self, field: str, value: object, match: str,
+        self,
+        field: str,
+        value: object,
+        match: str,
     ) -> None:
         kwargs: dict[str, object] = {"endpoint": "http://localhost:3100"}
         kwargs[field] = value
@@ -77,20 +80,23 @@ class TestLokiConfig:
 
     def test_max_message_bytes_positive_is_valid(self) -> None:
         cfg = LokiConfig(
-            endpoint="http://localhost:3100", max_message_bytes=1024,
+            endpoint="http://localhost:3100",
+            max_message_bytes=1024,
         )
         assert cfg.max_message_bytes == 1024
 
     def test_max_message_bytes_zero_invalid(self) -> None:
         with pytest.raises(ValueError, match="max_message_bytes"):
             LokiConfig(
-                endpoint="http://localhost:3100", max_message_bytes=0,
+                endpoint="http://localhost:3100",
+                max_message_bytes=0,
             )
 
     def test_max_message_bytes_negative_invalid(self) -> None:
         with pytest.raises(ValueError, match="max_message_bytes"):
             LokiConfig(
-                endpoint="http://localhost:3100", max_message_bytes=-1,
+                endpoint="http://localhost:3100",
+                max_message_bytes=-1,
             )
 
     def test_tls_warning_on_http_with_auth(self) -> None:
@@ -141,7 +147,8 @@ class TestLogEntry:
             metadata={"data": "a | b"},
         )
         assert " | " not in entry.line.split(" | ", 1)[1].replace(
-            '"a | b"', "",
+            '"a | b"',
+            "",
         )
         assert 'data="a | b"' in entry.line
 

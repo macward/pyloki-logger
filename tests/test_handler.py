@@ -16,7 +16,13 @@ class TestLevelMapping:
 
         with patch.object(client, "_log") as mock:
             record = logging.LogRecord(
-                "test", logging.DEBUG, "", 0, "msg", (), None,
+                "test",
+                logging.DEBUG,
+                "",
+                0,
+                "msg",
+                (),
+                None,
             )
             handler.emit(record)
 
@@ -29,7 +35,13 @@ class TestLevelMapping:
 
         with patch.object(client, "_log") as mock:
             record = logging.LogRecord(
-                "test", logging.INFO, "", 0, "msg", (), None,
+                "test",
+                logging.INFO,
+                "",
+                0,
+                "msg",
+                (),
+                None,
             )
             handler.emit(record)
 
@@ -42,7 +54,13 @@ class TestLevelMapping:
 
         with patch.object(client, "_log") as mock:
             record = logging.LogRecord(
-                "test", logging.WARNING, "", 0, "msg", (), None,
+                "test",
+                logging.WARNING,
+                "",
+                0,
+                "msg",
+                (),
+                None,
             )
             handler.emit(record)
 
@@ -55,7 +73,13 @@ class TestLevelMapping:
 
         with patch.object(client, "_log") as mock:
             record = logging.LogRecord(
-                "test", logging.ERROR, "", 0, "msg", (), None,
+                "test",
+                logging.ERROR,
+                "",
+                0,
+                "msg",
+                (),
+                None,
             )
             handler.emit(record)
 
@@ -68,7 +92,13 @@ class TestLevelMapping:
 
         with patch.object(client, "_log") as mock:
             record = logging.LogRecord(
-                "test", logging.CRITICAL, "", 0, "msg", (), None,
+                "test",
+                logging.CRITICAL,
+                "",
+                0,
+                "msg",
+                (),
+                None,
             )
             handler.emit(record)
 
@@ -84,7 +114,12 @@ class TestLoopPrevention:
         with patch.object(client, "_log") as mock:
             record = logging.LogRecord(
                 "loki_client.transport",
-                logging.INFO, "", 0, "msg", (), None,
+                logging.INFO,
+                "",
+                0,
+                "msg",
+                (),
+                None,
             )
             handler.emit(record)
 
@@ -98,7 +133,12 @@ class TestLoopPrevention:
         with patch.object(client, "_log") as mock:
             record = logging.LogRecord(
                 "myapp.service",
-                logging.INFO, "", 0, "msg", (), None,
+                logging.INFO,
+                "",
+                0,
+                "msg",
+                (),
+                None,
             )
             handler.emit(record)
 
@@ -113,8 +153,13 @@ class TestMetadataExtraction:
 
         with patch.object(client, "_log") as mock:
             record = logging.LogRecord(
-                "myapp", logging.INFO, "mod.py", 42,
-                "msg", (), None,
+                "myapp",
+                logging.INFO,
+                "mod.py",
+                42,
+                "msg",
+                (),
+                None,
             )
             record.module = "mymodule"
             record.funcName = "myfunc"
@@ -139,8 +184,13 @@ class TestMetadataExtraction:
 
         with patch.object(client, "_log") as mock:
             record = logging.LogRecord(
-                "test", logging.ERROR, "", 0,
-                "fail", (), exc_info,
+                "test",
+                logging.ERROR,
+                "",
+                0,
+                "fail",
+                (),
+                exc_info,
             )
             handler.emit(record)
 
@@ -165,8 +215,13 @@ class TestLabelConsistency:
 
         with patch.object(client._buffer, "append") as mock:
             record = logging.LogRecord(
-                "test", logging.INFO, "", 0, "via handler",
-                (), None,
+                "test",
+                logging.INFO,
+                "",
+                0,
+                "via handler",
+                (),
+                None,
             )
             handler.emit(record)
 
@@ -179,7 +234,9 @@ class TestLabelConsistency:
     ) -> None:
         config = make_config(
             extra_labels={
-                "app": "evil", "env": "evil", "level": "evil",
+                "app": "evil",
+                "env": "evil",
+                "level": "evil",
             },
         )
         client = Loki(config)
@@ -211,7 +268,13 @@ class TestEdgeCases:
 
         with patch.object(client, "_log") as mock:
             record = logging.LogRecord(
-                "test", 99, "", 0, "msg", (), None,
+                "test",
+                99,
+                "",
+                0,
+                "msg",
+                (),
+                None,
             )
             handler.emit(record)
 
@@ -232,7 +295,8 @@ class TestEdgeCases:
 class TestStandalone:
     def test_creates_internal_client(self) -> None:
         handler = LokiHandler.standalone(
-            endpoint="http://loki:3100", app="standalone",
+            endpoint="http://loki:3100",
+            app="standalone",
         )
         assert handler._owns_client
         assert handler._client._config.app == "standalone"
@@ -240,7 +304,8 @@ class TestStandalone:
 
     def test_close_stops_owned_client(self) -> None:
         handler = LokiHandler.standalone(
-            endpoint="http://loki:3100", app="standalone",
+            endpoint="http://loki:3100",
+            app="standalone",
         )
         with patch.object(handler._client, "stop") as mock_stop:
             handler.close()

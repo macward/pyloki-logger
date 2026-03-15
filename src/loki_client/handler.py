@@ -72,21 +72,24 @@ class LokiHandler(logging.Handler):
         if record.name.startswith(self._IGNORE_PREFIX):
             return
 
-        level = _LEVEL_MAP.get(record.levelno, "info")
-        message = self.format(record)
+        try:
+            level = _LEVEL_MAP.get(record.levelno, "info")
+            message = self.format(record)
 
-        metadata: dict[str, str] = {
-            "logger": record.name,
-            "module": record.module,
-            "func": record.funcName,
-        }
+            metadata: dict[str, str] = {
+                "logger": record.name,
+                "module": record.module,
+                "func": record.funcName,
+            }
 
-        if record.exc_info and record.exc_info[1] is not None:
-            metadata["traceback"] = "".join(
-                traceback.format_exception(*record.exc_info)
-            )
+            if record.exc_info and record.exc_info[1] is not None:
+                metadata["traceback"] = "".join(
+                    traceback.format_exception(*record.exc_info)
+                )
 
-        self._client._log(level, message, metadata)
+            self._client._log(level, message, metadata)
+        except Exception:
+            self.handleError(record)
 
     def close(self) -> None:
         if self._owns_client:

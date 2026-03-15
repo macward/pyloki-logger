@@ -60,16 +60,10 @@ class TestBuildStreams:
         streams, entries_per_stream = transport._build_streams(entries)
 
         assert len(streams) == 2
-        labels = {
-            json.dumps(s["stream"], sort_keys=True) for s in streams
-        }
+        labels = {json.dumps(s["stream"], sort_keys=True) for s in streams}
         assert labels == {'{"app": "a"}', '{"app": "b"}'}
-        all_entries = [
-            e for group in entries_per_stream for e in group
-        ]
-        assert set(id(e) for e in all_entries) == set(
-            id(e) for e in entries
-        )
+        all_entries = [e for group in entries_per_stream for e in group]
+        assert set(id(e) for e in all_entries) == set(id(e) for e in entries)
 
     def test_metadata_in_line(self, transport: LokiTransport) -> None:
         entries = [make_entry("msg", metadata={"rid": "123"}, ts=1)]
@@ -103,9 +97,7 @@ class TestSend:
         assert failed == []
         call = mock_post.call_args
         assert call.kwargs["headers"]["Content-Encoding"] == "gzip"
-        assert (
-            call.kwargs["headers"]["Content-Type"] == "application/json"
-        )
+        assert call.kwargs["headers"]["Content-Type"] == "application/json"
 
         body = gzip.decompress(call.kwargs["content"])
         payload = json.loads(body)
@@ -113,7 +105,8 @@ class TestSend:
         assert transport.sent_count == 1
 
     def test_post_without_gzip(
-        self, config_no_gzip: LokiConfig,
+        self,
+        config_no_gzip: LokiConfig,
     ) -> None:
         transport = LokiTransport(config_no_gzip)
         with patch.object(
@@ -130,7 +123,8 @@ class TestSend:
         transport.close()
 
     def test_auth_header(
-        self, config_with_auth: LokiConfig,
+        self,
+        config_with_auth: LokiConfig,
     ) -> None:
         transport = LokiTransport(config_with_auth)
         with patch.object(
@@ -141,9 +135,7 @@ class TestSend:
             transport.send([make_entry()])
 
         call = mock_post.call_args
-        assert (
-            call.kwargs["headers"]["Authorization"] == "Bearer tok123"
-        )
+        assert call.kwargs["headers"]["Authorization"] == "Bearer tok123"
         transport.close()
 
     def test_empty_batch_noop(self, transport: LokiTransport) -> None:
@@ -153,17 +145,20 @@ class TestSend:
         assert failed == []
 
     def test_send_returns_failed_batches(
-        self, transport: LokiTransport,
+        self,
+        transport: LokiTransport,
     ) -> None:
         entry = make_entry()
         mock_resp = MagicMock()
-        mock_resp.raise_for_status.side_effect = (
-            httpx.HTTPStatusError(
-                "500", request=MagicMock(), response=MagicMock(),
-            )
+        mock_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "500",
+            request=MagicMock(),
+            response=MagicMock(),
         )
         with patch.object(
-            transport._client, "post", return_value=mock_resp,
+            transport._client,
+            "post",
+            return_value=mock_resp,
         ):
             failed = transport.send([entry])
 
@@ -180,10 +175,10 @@ class TestSend:
 
         ok_resp = _mock_success()
         fail_resp = MagicMock()
-        fail_resp.raise_for_status.side_effect = (
-            httpx.HTTPStatusError(
-                "500", request=MagicMock(), response=MagicMock(),
-            )
+        fail_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "500",
+            request=MagicMock(),
+            response=MagicMock(),
         )
 
         streams, _ = transport._build_streams([e1, e2, e3])
@@ -195,7 +190,9 @@ class TestSend:
             responses.append(fail_resp if i == 0 else ok_resp)
 
         with patch.object(
-            transport._client, "post", side_effect=responses,
+            transport._client,
+            "post",
+            side_effect=responses,
         ):
             failed = transport.send([e1, e2, e3])
 
@@ -205,10 +202,13 @@ class TestSend:
         transport.close()
 
     def test_sent_count_tracks_entries_not_batches(
-        self, transport: LokiTransport,
+        self,
+        transport: LokiTransport,
     ) -> None:
         entries = [
-            make_entry(ts=1), make_entry(ts=2), make_entry(ts=3),
+            make_entry(ts=1),
+            make_entry(ts=2),
+            make_entry(ts=3),
         ]
         with patch.object(
             transport._client,
@@ -245,14 +245,17 @@ class TestSubBatchSplitting:
 
         entries = [
             make_entry(
-                "x" * 100, labels={"s": str(i)}, ts=i,
+                "x" * 100,
+                labels={"s": str(i)},
+                ts=i,
             )
             for i in range(5)
         ]
 
         streams, eps = transport._build_streams(entries)
         streams, eps = transport._split_oversized_streams(
-            streams, eps,
+            streams,
+            eps,
         )
         batches = transport._split_batches(streams)
 
@@ -267,7 +270,9 @@ class TestSubBatchSplitting:
 
         entries = [
             make_entry(
-                "x" * 80, labels={"app": "test"}, ts=i,
+                "x" * 80,
+                labels={"app": "test"},
+                ts=i,
             )
             for i in range(10)
         ]
@@ -276,7 +281,8 @@ class TestSubBatchSplitting:
         assert len(streams) == 1
 
         streams, eps = transport._split_oversized_streams(
-            streams, eps,
+            streams,
+            eps,
         )
         assert len(streams) > 1
 
@@ -294,17 +300,20 @@ class TestSubBatchSplitting:
 
 class TestErrorCounting:
     def test_http_status_error_increments_error_count(
-        self, transport: LokiTransport,
+        self,
+        transport: LokiTransport,
     ) -> None:
         mock_resp = MagicMock()
-        mock_resp.raise_for_status.side_effect = (
-            httpx.HTTPStatusError(
-                "500", request=MagicMock(), response=MagicMock(),
-            )
+        mock_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "500",
+            request=MagicMock(),
+            response=MagicMock(),
         )
 
         with patch.object(
-            transport._client, "post", return_value=mock_resp,
+            transport._client,
+            "post",
+            return_value=mock_resp,
         ):
             transport.send([make_entry()])
 
@@ -312,7 +321,8 @@ class TestErrorCounting:
         assert transport.sent_count == 0
 
     def test_connection_error_increments_drop_count(
-        self, transport: LokiTransport,
+        self,
+        transport: LokiTransport,
     ) -> None:
         with patch.object(
             transport._client,
@@ -327,7 +337,8 @@ class TestErrorCounting:
 
 class TestClose:
     def test_close_delegates_to_httpx_client(
-        self, config: LokiConfig,
+        self,
+        config: LokiConfig,
     ) -> None:
         transport = LokiTransport(config)
         with patch.object(transport._client, "close") as mock_close:

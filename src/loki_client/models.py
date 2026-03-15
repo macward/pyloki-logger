@@ -42,10 +42,7 @@ class LokiConfig:
             raise ValueError("timeout must be > 0")
         if self.max_message_bytes is not None and self.max_message_bytes <= 0:
             raise ValueError("max_message_bytes must be > 0 or None")
-        if (
-            self.auth_header
-            and self.endpoint.startswith("http://")
-        ):
+        if self.auth_header and self.endpoint.startswith("http://"):
             warnings.warn(
                 "auth_header is set but endpoint uses plain HTTP; "
                 "credentials may be transmitted in cleartext",
@@ -80,8 +77,7 @@ class LogEntry:
         if not self.metadata:
             return self.message
         pairs = " ".join(
-            f"{_escape_meta(k)}={_escape_meta(v)}"
-            for k, v in self.metadata.items()
+            f"{_escape_meta(k)}={_escape_meta(v)}" for k, v in self.metadata.items()
         )
         return f"{self.message} | {pairs}"
 

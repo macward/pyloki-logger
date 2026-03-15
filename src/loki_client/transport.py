@@ -63,7 +63,8 @@ class LokiTransport:
 
         streams, entries_per_stream = self._build_streams(entries)
         streams, entries_per_stream = self._split_oversized_streams(
-            streams, entries_per_stream,
+            streams,
+            entries_per_stream,
         )
         batches = self._split_batches(streams)
         failed: list[list[LogEntry]] = []
@@ -75,7 +76,8 @@ class LokiTransport:
             if not ok:
                 batch_entries: list[LogEntry] = []
                 for i in range(
-                    stream_offset, stream_offset + batch_size,
+                    stream_offset,
+                    stream_offset + batch_size,
                 ):
                     batch_entries.extend(entries_per_stream[i])
                 failed.append(batch_entries)
@@ -87,7 +89,8 @@ class LokiTransport:
         self._client.close()
 
     def _build_streams(
-        self, entries: list[LogEntry],
+        self,
+        entries: list[LogEntry],
     ) -> tuple[list[dict[str, object]], list[list[LogEntry]]]:
         grouped: dict[str, tuple[dict[str, str], list[LogEntry]]] = {}
         for entry in entries:
@@ -109,7 +112,8 @@ class LokiTransport:
         streams: list[dict[str, object]],
         entries_per_stream: list[list[LogEntry]],
     ) -> tuple[
-        list[dict[str, object]], list[list[LogEntry]],
+        list[dict[str, object]],
+        list[list[LogEntry]],
     ]:
         max_bytes = self._config.max_batch_bytes
         out_streams: list[dict[str, object]] = []
@@ -149,9 +153,7 @@ class LokiTransport:
 
                 chunk_vals.append(val)
                 chunk_entries.append(entry)
-                chunk_size += (
-                    _COMMA_OVERHEAD if len(chunk_vals) > 1 else 0
-                ) + val_size
+                chunk_size += (_COMMA_OVERHEAD if len(chunk_vals) > 1 else 0) + val_size
 
             if chunk_vals:
                 out_streams.append(
@@ -209,7 +211,7 @@ class LokiTransport:
             with self._lock:
                 self._error_count += 1
             return False
-        except httpx.HTTPError:
+        except (httpx.HTTPError, RuntimeError):
             with self._lock:
                 self._drop_count += 1
             return False

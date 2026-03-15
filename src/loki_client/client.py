@@ -49,6 +49,7 @@ class Loki:
 
         self._transport = LokiTransport(self._config)
         self._buffer = LogBuffer(self._transport, self._config)
+        self._stopped = False
 
     def __enter__(self) -> Loki:
         return self
@@ -69,9 +70,14 @@ class Loki:
         self._log("error", message, metadata)
 
     def flush(self) -> None:
+        if self._stopped:
+            return
         self._buffer.flush()
 
     def stop(self) -> None:
+        if self._stopped:
+            return
+        self._stopped = True
         self._buffer.stop()
         self._transport.close()
 
@@ -90,8 +96,13 @@ class Loki:
         }
 
     def _log(
-        self, level: str, message: str, metadata: dict[str, str],
+        self,
+        level: str,
+        message: str,
+        metadata: dict[str, str],
     ) -> None:
+        if self._stopped:
+            return
         labels = {
             **self._config.extra_labels,
             "app": self._config.app,

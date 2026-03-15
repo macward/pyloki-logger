@@ -103,7 +103,9 @@ class TestRetry:
         entry = make_entry()
         transport.send.return_value = [[entry]]
         config = make_config(
-            batch_size=1, max_retries=2, retry_backoff=0.01,
+            batch_size=1,
+            max_retries=2,
+            retry_backoff=0.01,
         )
         buf = LogBuffer(transport, config)
 
@@ -120,7 +122,9 @@ class TestRetry:
         entry = make_entry()
         transport.send.return_value = [[entry]]
         config = make_config(
-            batch_size=1, max_retries=0, retry_backoff=0.01,
+            batch_size=1,
+            max_retries=0,
+            retry_backoff=0.01,
         )
         buf = LogBuffer(transport, config)
 
@@ -138,7 +142,9 @@ class TestRetry:
         entry = make_entry()
         transport.send.return_value = [[entry]]
         config = make_config(
-            batch_size=1, max_retries=3, retry_backoff=0.01,
+            batch_size=1,
+            max_retries=3,
+            retry_backoff=0.01,
         )
         buf = LogBuffer(transport, config)
 
@@ -213,7 +219,8 @@ class TestBackgroundThreadResilience:
 
         transport.send.side_effect = side_effect
         config = make_config(
-            batch_size=100, flush_interval=0.05,
+            batch_size=100,
+            flush_interval=0.05,
         )
         buf = LogBuffer(transport, config)
 

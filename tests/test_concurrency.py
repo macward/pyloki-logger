@@ -14,7 +14,8 @@ class TestBufferConcurrency:
         """10 threads x 1000 entries; sent + dropped + buffered == 10000."""
         transport = FakeTransport()
         config = make_config(
-            batch_size=50, max_buffer_size=10_000,
+            batch_size=50,
+            max_buffer_size=10_000,
         )
         buf = LogBuffer(transport, config)
 
@@ -27,9 +28,7 @@ class TestBufferConcurrency:
             for i in range(per_thread):
                 buf.append(make_entry(ts=i))
 
-        threads = [
-            threading.Thread(target=worker) for _ in range(num_threads)
-        ]
+        threads = [threading.Thread(target=worker) for _ in range(num_threads)]
         for t in threads:
             t.start()
         for t in threads:
@@ -78,7 +77,8 @@ class TestBufferConcurrency:
         """stop() called while background flush thread is running."""
         transport = FakeTransport()
         config = make_config(
-            batch_size=100, flush_interval=0.01,
+            batch_size=100,
+            flush_interval=0.01,
         )
         buf = LogBuffer(transport, config)
 
@@ -126,7 +126,8 @@ class TestTransportConcurrency:
         barrier = threading.Barrier(num_threads)
 
         with patch.object(
-            transport._client, "post",
+            transport._client,
+            "post",
         ) as mock_post:
             resp = MagicMock()
             resp.raise_for_status = MagicMock()
@@ -137,10 +138,7 @@ class TestTransportConcurrency:
                 for _ in range(per_thread):
                     transport.send([make_entry()])
 
-            threads = [
-                threading.Thread(target=worker)
-                for _ in range(num_threads)
-            ]
+            threads = [threading.Thread(target=worker) for _ in range(num_threads)]
             for t in threads:
                 t.start()
             for t in threads:

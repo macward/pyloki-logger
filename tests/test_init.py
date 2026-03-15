@@ -6,8 +6,11 @@ import loki_client
 class TestPublicExports:
     def test_all_names_importable(self) -> None:
         for name in [
-            "Loki", "LokiHandler", "LokiConfig",
-            "LogEntry", "TransportProtocol",
+            "Loki",
+            "LokiHandler",
+            "LokiConfig",
+            "LogEntry",
+            "TransportProtocol",
         ]:
             assert hasattr(loki_client, name)
 

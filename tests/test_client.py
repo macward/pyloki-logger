@@ -21,7 +21,9 @@ class TestLogMethods:
         assert entry.level == "info"
         assert entry.message == "hello world"
         assert entry.labels == {
-            "app": "testapp", "env": "test", "level": "info",
+            "app": "testapp",
+            "env": "test",
+            "level": "info",
         }
         assert entry.metadata == {"request_id": "abc"}
         client.stop()
@@ -82,7 +84,8 @@ class TestKwargsConstructor:
 
     def test_kwargs_with_extra_labels_none(self) -> None:
         client = Loki(
-            endpoint="http://loki:3100", extra_labels=None,
+            endpoint="http://loki:3100",
+            extra_labels=None,
         )
         assert client._config.extra_labels == {}
         client.stop()

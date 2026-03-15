@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from loki_client.models import LogEntry, LokiConfig, TransportProtocol
 
+_MAX_RETRY_QUEUE = 1000
+
 
 class _RetryItem:
     __slots__ = ("entries", "attempts", "next_retry")
@@ -37,6 +39,9 @@ class LogBuffer:
         atexit.register(self.stop)
 
     def append(self, entry: LogEntry) -> None:
+        if self._stop_event.is_set():
+            return
+
         max_bytes = self._config.max_message_bytes
         if max_bytes is not None and len(entry.message.encode()) > max_bytes:
             with self._lock:
@@ -55,14 +60,20 @@ class LogBuffer:
                 self._buffer.clear()
 
         if batch is not None:
-            self._send_batch(batch)
+            try:
+                self._send_batch(batch)
+            except Exception:
+                self._enqueue_retry(batch)
 
     def flush(self) -> None:
         with self._lock:
             batch = list(self._buffer)
             self._buffer.clear()
         if batch:
-            self._send_batch(batch)
+            try:
+                self._send_batch(batch)
+            except Exception:
+                self._enqueue_retry(batch)
         self._process_retries()
 
     def stop(self) -> None:
@@ -70,7 +81,8 @@ class LogBuffer:
             return
         self._stop_event.set()
         self._thread.join(timeout=self._config.timeout)
-        self.flush()
+        if not self._thread.is_alive():
+            self.flush()
 
     @property
     def stats(self) -> dict[str, int]:
@@ -105,6 +117,9 @@ class LogBuffer:
                 self._drop_count += len(entries)
             return
         with self._lock:
+            if len(self._retry_queue) >= _MAX_RETRY_QUEUE:
+                self._drop_count += len(entries)
+                return
             self._retry_queue.append(
                 _RetryItem(entries, self._config.retry_backoff),
             )
@@ -117,12 +132,13 @@ class LogBuffer:
 
         for item in ready:
             item.attempts += 1
-            failed = self._transport.send(item.entries)
+            try:
+                failed = self._transport.send(item.entries)
+            except Exception:
+                failed = [item.entries]
             if failed:
                 if item.attempts < self._config.max_retries:
-                    backoff = self._config.retry_backoff * (
-                        2 ** item.attempts
-                    )
+                    backoff = self._config.retry_backoff * (2**item.attempts)
                     item.next_retry = time.monotonic() + backoff
                     with self._lock:
                         self._retry_queue.append(item)

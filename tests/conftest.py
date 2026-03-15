@@ -40,7 +40,9 @@ class FakeTransport:
     """In-memory transport that records batches for test assertions."""
 
     def __init__(
-        self, *, fail_until: int = 0,
+        self,
+        *,
+        fail_until: int = 0,
     ) -> None:
         self.batches: list[list[LogEntry]] = []
         self.closed: bool = False
@@ -71,7 +73,8 @@ class FakeTransport:
         return self._drop_count
 
     def send(
-        self, entries: list[LogEntry],
+        self,
+        entries: list[LogEntry],
     ) -> list[list[LogEntry]]:
         if self._fail_count < self._fail_until:
             self._fail_count += 1
